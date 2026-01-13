@@ -1,0 +1,30 @@
+[project]
+name = "builderanalyzer"
+version = "0.1.0"
+description = "Pokemon Team Builder Analysis Tool"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "matplotlib>=3.10.8",
+    "numpy>=2.4.1",
+    "scikit-fuzzy>=0.5.0",
+    "scipy>=1.17.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.0.0",
+]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = false
+warn_unused_ignores = false
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "main_old"
+ignore_errors = true

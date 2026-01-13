@@ -1,58 +1,120 @@
 # BuilderAnalyzer
-Analyzes Team Builders from Pokemon Showdown, outputs sets compendium, builder statistics, and sorted builders.  
+
+Analyzes Team Builders from Pokemon Showdown, outputs sets compendium, builder statistics, sorted builders, and archetype analysis.
+
 ## Prerequisites
-Python 3
+
+- Python 3.13+
+- [uv](https://docs.astral.sh/uv/) - Python package manager
+
+## Installation
+
+1. Install uv (if not already installed):
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+2. Get the code:
+
+**Option A: Clone with git**
+```bash
+git clone https://github.com/surfnWOB/BuilderAnalyzer.git
+cd BuilderAnalyzer
+```
+
+**Option B: Download as ZIP**
+- Click the green "Code" button on GitHub and select "Download ZIP"
+- Extract the ZIP file and open a terminal in that folder
+
+3. Install dependencies:
+
+```bash
+uv sync
+```
+
+## Usage
+
+1. Place your Pokemon Showdown builder export in `my_builder.txt` (or specify a different file with `-i`)
+
+2. Run the analyzer:
+
+```bash
+uv run python main.py
+```
+
+### Command Line Options
+
+```
+--input, -i FILE    Input builder file (default: my_builder.txt)
+--no-download       Skip downloading Pokemon data files
+--force-download    Force re-download of Pokemon data files even if fresh
+--no-archetypes     Skip archetype analysis
+--verbose, -v       Enable verbose logging
+```
+
+### Examples
+
+```bash
+# Analyze default builder
+uv run python main.py
+
+# Analyze a specific file
+uv run python main.py -i my_other_builder.txt
+
+# Skip archetype analysis for faster processing
+uv run python main.py --no-archetypes
+
+# Force refresh of Pokemon data
+uv run python main.py --force-download
+```
+
+## Output
+
+Results are written to the `output/` directory, organized by generation:
+
+```
+output/
+  gen3ou/
+    statistics/     # Usage statistics (txt and csv)
+    sets/           # Sets compendium files
+    builders/       # Sorted builder output
+    archetypes/     # Archetype analysis results
+    plots/          # FPC plots for archetype analysis
+```
+
 ## Configuration
-Most of the instructions below are for fine-tuning.  Some are critical, like the sorting order.  
-### Step 1: Identify your File
-Replace 
-```fin = 'my_builder.txt'```
-with your builder name.  
-### Step 2: Get Database from Pokemon Showdown
-Note: In Python, True and False are case sensitive boolean values, so remember to capitalize!!!
-```downloadPokedex``` downloads the Pokemon Showdown Pokedex.  Set to True if you're using for the first time or want to update.  
-### Step 3: Which metagames?
-```allGenerations = True``` if you want to process all metagames in your builder (default).  
-If you want only to process specific metagames, make ```allGenerations = False``` and list them out in ```generation```
-### Step 4: What counts as an incomplete team?  
-```anomalyThreshold``` is a number that describes how unfinished a team is by looking at remaining EVs, missing moves and missing pokemon.  Set to 0 for strictest, allowing no missed moves and at most 4 EVs lost (80 EVs for LC) (default).  Set to 999 to include all teams regardless of completion.  
-```includeIncompleteTeams``` places incomplete teams at the top of the builder if set to True (default), otherwise it removes them completely.  
-### Step 5: Sets compendium
-```EVthreshold```: Two sets are considered similar if the EV movement is at most this number, ie. 252HP 0Atk and 212HP 40Atk differ by 40EVs.  Set to 0 to distinguish all sets.  
-```IVthreshold```: Two sets are considered similar if the IVs differ by at most this number, ie. 31HP and 0HP differ by 31.  Set to 999 to ignore IV differences (recommended)
-```combineMoves``` is the number of combined moveslots.  Set to 2 to combine on two moveslots (default).  To distinguish all sets, set to 0.  
-```sortMovesByFrequency, sortMovesByAlphabetical``` tell if/how you want the moves sorted.  A value of 1,-1, or 0 means sort in increasing order, decreasing order, or don't sort.  Choose at most one to set to nonzero.  
-```showShiny, showIVs, showNicknames``` describe how you want the sets displayed.  ```showIVs``` is recommended to be false due to possible slashed moves conflict.  
-```ignoreSetsFraction``` filters the lowest fraction of these sets away.  ```ignoreSetsFraction = [1/8,1/16,1/32,0]``` removes the least-used 1/8, 1/16, 1/32 sets of each pokemon and writes the sets compendium to different files.  Zero removes no sets.  
-```showStatisticsInSets``` displays statistics of set usage if set to True (default)
-```printArchetypeLabel``` if set to true, prepends the team with the most fitting archetype number when archetype analysis is enabled.  Note that this feature is not very reliable as of now.  
-### Step 6: Core Statistics
-```maxCoreNum``` sets the maximum core size to output to the file.  
-```usageWeight``` is a list of six display parameters that correspond to how much influence the frequency of the each of the 6 core sizes affect the final ranking.  The display order combines both the frequency of the core (f) and the synergy score (s), as s * f^```usageWeight```.   A higher value weights frequency more and vice versa.  
 
-Sets are characterized according to the following hierarchy: the program first checks if the Pokemon is holding an important item listed in ```importantItems```.  If so, the item uniquely characterizes the set.  Otherwise, the Pokemon's top two EVs are selected as the identifier at the top of the hierarchy.  A nature is approximated to add and subtract a number of EVs in the relevant stat equal to ```natureEVmodifier```.  Then, the program aggregates all sets that have these top two EVs in common, and checks for approximately disjoint movesets.  The ratio of the joint probability to the product of individual probabilities of all move pairs (which we call the exponentiated mutual information, EMI) is calculated.  Move pairs with this ratio below ``` movePairSynergyThreshold``` are singled out.  To ensure sufficient representation, each move in this pair is checked to occur with a probability larger than ```moveProbThreshold```.  To prevent categorizing rare sets, the move is also checked to occur with a count larger than ```moveCountThreshold```.  The program now calculates the sum probability of each move pair that satisfy these conditions, and barring the next condition, selects the most probable pair as categories at the next level of the hierarchy.  If however, the sum probability does not exceed ```1/4 * sumMoveProbThreshold``` (1/4 to account for these moves occupying a single slot out of four), then an attempt to find move triplets is made.  Now, the ratio of the joint probability  to the product of individual probabilities of move triplets is calculated.  Move triplets with this ratio below ```moveTripletSynergyThreshold``` are singled out.  The EMI of all move pairs within the triplet is checked to be below ```movePairInTripletSynergyThreshold```.  Again for sufficient representation, all moves within the triplet are checked to be more probable than ```moveProbInTripletThreshold```, and is also checked to occur with a count larger than ```moveCountThreshold```.  Similarly, the program now calculates the sum probability of each move triplet that satisfy these conditions, and barring the next condition, selects the most probable triplet as categories at the next level of the hierarchy.  If however, the sum probability does not exceed ```1/4 * sumMoveProbTripletThreshold```, then such a categorization by move is not made.  
+Advanced configuration can be done by editing `src/config.py`. Key options include:
 
-Next comes the category-naming protocol.  The goal is to find approximately mutually exclusive moves that characterize an EV-based category.  It is a more intuitive way of naming sets.  After obtaining all categories, the program performs the naming for each category only if it is not defined by an important item, and only if the Pokemon has more than one category.  The program now forms a list of exclusive moves that appear in at most n=1 of the well-represented categories.  By well-represented, it means that the program only considers categories that have a probability of appearance above ```namingExclusionCatThreshold```, and moves within those categories that have a probability above ```namingExclusionMoveThreshold``` in the list of moves for that category.  Note that the maximum probability corresponding to a move that is on all sets within that category is 1/4.  The program attempts to name the category by the most frequent move out of all selected moves, but if that move has a probability that does not exceed ```namingMinMoveProb```, then a more relaxed list of exclusive moves is formed, selecting moves that appear in now n= instead of one of the well-represented categories.  This process repeats until n=```namingIgnoreCategoryNum``` or the most frequent move exceeds the probability threshold of ```namingMinMoveProb```.  Note again that the maximum probability corresponding to a move that is on all sets within that category is 1/4.  The category is not named by move if move selection fails entirely.  
+### Team Completeness
+- `anomaly_threshold`: How strict to be about incomplete teams (0 = strictest)
+- `include_incomplete_teams`: Whether to include incomplete teams in output
 
-IMPORTANT! All parameters above determine if the sets are properly named and represented.  This should be checked and optimized to make intuitive sense in the synergy_sets files.  
+### Sets Compendium
+- `ev_threshold`: EV difference threshold for combining similar sets
+- `combine_moves`: Number of move slots that can differ when combining sets
+- `ignore_sets_fraction`: Filter out least-used sets
 
-Next comes the options of whether to include the statistics of cores that do not appear at all.  To show missing cores for the Pokemon statistics, set ```showMissingMonCores``` to True, and likewise ```showMissingSetCores``` for the set statistics.  These will appear to have a synergy score lower than -100, where the lowest number has the highest individual probabilities.  Generally, this is not advised as there are a lot more combinations of mons that do not appear than those that do, and setting these to True will make the file really big.  If desired though, set ```maxMissingMonCores``` and/or ```maxMissingSetCores``` to the maximum core size to display.  It is not recommended to go above 2.  
-### Step 7: Archetype Statistics
-IMPORTANT! Running this requires the libraries numpy, skfuzzy, and matplotlib.  Installation can be done with pip.  Numpy and matplotlib should come with scipy, which one can install by following https://scipy.org/install.html . Follow https://pythonhosted.org/scikit-fuzzy/install.html for installation of skfuzzy.  
+### Archetype Analysis
+- `auto_num_archetypes`: Automatically determine optimal number of archetypes
+- `num_archetypes`: Manual override for number of archetypes
+- `exponent`: Fuzziness parameter for clustering
+- `gamma_spectral`: Weight for frequent pairs in spectral decomposition
 
-To enable archetype analysis, set ```analyzeArchetypes``` to True.  Archetype analysis using synergies between pairs of Pokemon is a unique problem in that Pokemon can belong to more than one cluster (requiring fuzzy methods), yet do not reside in a continuous space.  Typical c-means clustering assumes the points are located in Euclidean space.  Thus, the archetype analysis uses the spectral decomposition in spectral clustering described by Ng, Jordan and Weiss (2002) as an embedding into Euclidean space, but follows up with c-means clustering.  An adjacency matrix is formed where the elements are the probabilities of pairs raised to the power of ```gammaSpectral```.   Higher values weight more frequent pairs more strongly, more suited for more centralizing archetypes and vice versa.   The laplacian is taken and eigendecomposed, following which c-means clustering is performed with a parameter, ```exponent```, that determines the degree of fuzziness (overlap).  As we do not yet know the number of archetypes, the program loops through clusters of 2 to ```numArchetypesRange``` archetypes.  The correct number of archetypes to use is determined by the knee (sharp drop) of the graph of the clustering coefficient vs number of archetypes produced while running the code.  Set ```numArchetypes``` to the knee, and run the code again.  When the archetypes are correctly determined, they are displayed in some order that combines both the frequency of the Pokemon (f) and their probability of being in the cluster (p), as p * f^```gammaArchetype```.   A higher value weights frequency more and vice versa.   
+### Builder Sorting
+- `sort_builder`: Enable/disable builder sorting
+- `sort_gen_by_frequency`: Sort generations by team count
+- `sort_teams_by_core`: Sort teams by core synergy scores
 
-IMPORTANT! The parameters above apart from the display parameter determine the fidelity of clustering.  They should be tweaked to ultimately produce clusters where the probabilities and frequencies in every cluster are high.  The clustering coefficient can be used as a proxy to this for initial optimization but is by no means a foolproof measure.  Note that runs with the same parameters can converge to different results because of the initialization of the clustering, and sometimes several independent runs is needed to find the right convergence.  
-### Step 6: Builder sort
-```sortBuilder``` set to True (default) if you want to receive a sorted builder
-```sortGenByAlphabetical, sortGenByFrequency``` tell how you want the metagames sorted.  A value of 1,-1, or 0 means sort in increasing order, decreasing order, or don't sort.  Choose at most one to set to nonzero.  
-```sortFolderByFrequency, sortFolderByAlphabetical``` tell if/how you want the folders sorted.  A value of 1,-1, or 0 means sort in increasing order, decreasing order, or don't sort.  Choose at most one to set to nonzero.  
+## Data Files
 
-```sortTeamsByArchetype``` determine if the teams are sorted by archetype.  A value of 1,-1, or 0 means sort in increasing order, decreasing order, or don't sort.  This feature is unreliable right now.  
-```metricArchetypes``` determines the method by which a team's archetype is determined.  When it is 0, it does a weighted sum on the euclidean distance of each six mons to the archetype center raised to the power of ```gammaTeamAssignment```.  When it is 1, the weighted sum is performed on the complementary (1 minus) probability of the six mons, again raised to ```gammaTeamAssignment```.  The weights are simply the relative frequencies of the individual mons.  
+Pokemon data (pokedex, items, moves, abilities) is automatically downloaded from Pokemon Showdown on first run. Files are cached in the `data/` directory and refreshed if older than 7 days.
 
-```sortTeamsByLeadFrequencyTeamPreview, sortTeamsByLeadFrequencyNoTeamPreview, sortTeamsByCore, sortTeamsByAlphabetical``` tell how you want the teams sorted.  A value of 1,-1, or 0 means sort in increasing order, decreasing order, or don't sort.  Sorting priority is top to bottom: sort by lead first, then core, then alphabetical.  ```sortTeamsByLeadFrequencyTeamPreview, sortTeamsByLeadFrequencyNoTeamPreview``` are different sort-by-lead settings for team preview and non team preview gens.  For example, if you want to sort by most frequent lead in gen3 but not gen6, set ```sortTeamsByLeadFrequencyTeamPreview = 0``` and ```sortTeamsByLeadFrequencyNoTeamPreview = -1```.  
-```coreNumber``` determines the number of pokemons in core if ```sortTeamsByCore``` is 1 or -1.  In other words, ```sortTeamsByCore = 2``` will sort teams by usage stats of pairs of pokemon.  
-```sortMonsByFrequency``` sorts within the team by individual mon usage.  A value of 1,-1, or 0 means sort in increasing order, decreasing order, or don't sort.  
-```sortMonsByColor``` sorts the team according to colors of the rainbow.  Set to True or False.  ```gamma``` helps to determine the pokemon color.  Higher ```gamma``` treats small patches of bright colors more seriously, while lower ```gamma``` prefers large patches of dull colors.  Recommended ```gamma=1```
+## Credits
 
+Original author: vapicuno
