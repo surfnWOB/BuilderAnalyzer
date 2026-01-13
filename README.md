@@ -9,7 +9,9 @@ Analyzes Team Builders from Pokemon Showdown, outputs sets compendium, builder s
 
 ## Installation
 
-1. Install uv (if not already installed):
+### Step 1: Install uv
+
+[uv](https://docs.astral.sh/uv/) is a fast Python package manager. Install it with:
 
 ```bash
 # macOS/Linux
@@ -19,7 +21,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-2. Get the code:
+### Step 2: Get the code
 
 **Option A: Clone with git**
 ```bash
@@ -31,7 +33,7 @@ cd BuilderAnalyzer
 - Click the green "Code" button on GitHub and select "Download ZIP"
 - Extract the ZIP file and open a terminal in that folder
 
-3. Install dependencies:
+### Step 3: Install dependencies
 
 ```bash
 uv sync
@@ -39,9 +41,11 @@ uv sync
 
 ## Usage
 
-1. Place your Pokemon Showdown builder export in `my_builder.txt` (or specify a different file with `-i`)
+### Step 1: Add your builder file
 
-2. Run the analyzer:
+Place your Pokemon Showdown builder export in `my_builder.txt` (or specify a different file with `-i`).
+
+### Step 2: Run the analyzer
 
 ```bash
 uv run python main.py
