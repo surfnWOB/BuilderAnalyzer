@@ -80,7 +80,10 @@ class Config:
         self.num_archetypes: int = 8
         self.auto_num_archetypes: bool = True  # Automatically determine optimal number
         self.min_fpc_threshold: float = 0.5  # Minimum FPC for auto selection
+        self.fpc_cliff_threshold: float = 0.3  # Percent drop that indicates a cliff (0.3 = 30%)
         self.gamma_archetypes: float = 0.7
+        self.min_archetype_confidence: float = 0.20  # Min confidence to display in archetype output
+        self.min_archetype_core_members: int = 3  # Min core members (>=50% conf, >=2% usage) to keep archetype
 
         # --- COMBINED BUILDER PARAMETERS ---
         self.sort_builder: bool = True

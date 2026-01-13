@@ -192,8 +192,8 @@ class ArchetypeAnalyzer:
         """
         Automatically determine the optimal number of archetypes based on FPC values.
 
-        Uses the "knee" method: find where the rate of FPC decline slows down significantly.
-        This balances having enough clusters to capture diversity while not over-partitioning.
+        Uses cliff detection: find where FPC drops dramatically and select
+        the number of clusters just before that cliff.
 
         Args:
             fpcs: List of FPC values for cluster counts 2, 3, 4, ...
@@ -208,57 +208,36 @@ class ArchetypeAnalyzer:
             return 2
 
         min_fpc = getattr(self.config, 'min_fpc_threshold', 0.5)
+        cliff_threshold = getattr(self.config, 'fpc_cliff_threshold', 0.3)
 
         # fpcs[0] corresponds to 2 clusters, fpcs[1] to 3 clusters, etc.
-        # Calculate the rate of change (first derivative) of FPC
-        deltas = [fpcs[i] - fpcs[i + 1] for i in range(len(fpcs) - 1)]
-
-        # Find the "knee" - where the decline rate drops significantly
-        # We want to find where adding more clusters stops causing big FPC drops
-
-        # Method: Use the largest drop in rate of decline (second derivative)
-        # This indicates where the curve "bends" from steep decline to flat
-
-        optimal_idx = 0
         max_fpc = fpcs[0]
 
-        if len(deltas) >= 2:
-            # Calculate second derivative (change in the rate of change)
-            second_deriv = [deltas[i] - deltas[i + 1] for i in range(len(deltas) - 1)]
+        # Method 1: Find the cliff - where FPC drops dramatically
+        for i in range(len(fpcs) - 1):
+            if fpcs[i] > 0:
+                drop_pct = (fpcs[i] - fpcs[i + 1]) / fpcs[i]
+                if drop_pct > cliff_threshold:
+                    # Found cliff, return k just before it
+                    optimal_clusters = i + 2  # +2 because fpcs[0] = 2 clusters
+                    logger.info(f"FPC analysis: max={max_fpc:.4f} at 2 clusters, "
+                               f"cliff detected at {i + 3} clusters ({drop_pct:.1%} drop), "
+                               f"selected {optimal_clusters} clusters (FPC={fpcs[i]:.4f})")
+                    return optimal_clusters
 
-            # Find where the second derivative is most negative (biggest "knee")
-            # This is where the curve transitions from steep to flat
-            min_second = min(second_deriv)
-            knee_idx = second_deriv.index(min_second)
+        # Method 2: No cliff found, use minimum FPC threshold
+        for i in range(len(fpcs)):
+            if fpcs[i] < min_fpc:
+                optimal_clusters = max(i + 1, 2)  # one before dropping below threshold
+                logger.info(f"FPC analysis: max={max_fpc:.4f} at 2 clusters, "
+                           f"no cliff, FPC dropped below {min_fpc} at {i + 2} clusters, "
+                           f"selected {optimal_clusters} clusters (FPC={fpcs[i-1] if i > 0 else fpcs[0]:.4f})")
+                return optimal_clusters
 
-            # The optimal point is just after the knee
-            # knee_idx in second_deriv corresponds to cluster count (knee_idx + 3)
-            optimal_idx = knee_idx + 1  # +1 to get past the knee
-
-        # Ensure FPC stays above threshold
-        while optimal_idx < len(fpcs) and fpcs[optimal_idx] < min_fpc:
-            optimal_idx -= 1
-            if optimal_idx < 0:
-                optimal_idx = 0
-                break
-
-        # Cap at a reasonable maximum if FPC is still very high
-        # If FPC > 0.9 at 8+ clusters, we might want to use more
-        while (optimal_idx < len(fpcs) - 1 and
-               fpcs[optimal_idx + 1] >= min_fpc and
-               fpcs[optimal_idx + 1] >= 0.6 and
-               optimal_idx + 2 < 10):  # Don't exceed 10 clusters
-            # Check if adding another cluster doesn't hurt too much
-            if fpcs[optimal_idx] - fpcs[optimal_idx + 1] < 0.05:
-                optimal_idx += 1
-            else:
-                break
-
-        optimal_clusters = optimal_idx + 2  # +2 because fpcs[0] = 2 clusters
-
+        # Method 3: FPC stays high throughout, return max tested
+        optimal_clusters = len(fpcs) + 1
         logger.info(f"FPC analysis: max={max_fpc:.4f} at 2 clusters, "
-                   f"knee detected, selected {optimal_clusters} clusters (FPC={fpcs[optimal_idx]:.4f})")
-
+                   f"FPC stayed above {min_fpc}, selected {optimal_clusters} clusters (FPC={fpcs[-1]:.4f})")
         return optimal_clusters
 
     def find_team_archetype(self, team: dict, cat_indiv_dict_inv: dict,

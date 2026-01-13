@@ -338,17 +338,38 @@ class OutputWriter:
 
         max_name_len = max((len(category_nics.get(c, str(c))) for c in cat_indiv_list), default=18)
 
+        # Filter out weak archetypes (not enough core members)
+        min_freq_pct = 0.02
+        min_core_members = getattr(self.config, 'min_archetype_core_members', 3)
+
+        strong_archetypes = []
+        for ii in archetype_order:
+            core_count = 0
+            for cat_idx in range(len(cat_indiv_list)):
+                cat = cat_indiv_list[cat_idx]
+                freq = cat_core_list[0][(cat,)]
+                freq_pct = freq / num_teams if num_teams > 0 else 0
+                conf = p_mat[ii, cat_idx]
+                if freq_pct >= min_freq_pct and conf >= 0.5:
+                    core_count += 1
+            if core_count >= min_core_members:
+                strong_archetypes.append(ii)
+            else:
+                logger.info(f"Filtering out archetype {archetype_order.index(ii) + 1} (only {core_count} core members)")
+
         with open(filename, 'w', encoding='utf-8', errors='ignore') as f:
             f.write(f"Built from {self.template}.txt\n")
             f.write('-' * 50 + '\n')
-            f.write(f"Number of archetypes: {num_archetypes}\n")
+            f.write(f"Number of archetypes: {len(strong_archetypes)}")
+            if len(strong_archetypes) < num_archetypes:
+                f.write(f" (filtered from {num_archetypes})")
+            f.write('\n')
             f.write(f"Exponent: {self.config.exponent:.3f}\n")
             f.write(f"Gamma spectral: {self.config.gamma_spectral:.3f}\n")
             f.write('-' * 50 + '\n\n')
 
-            for ii in archetype_order:
-                f.write(f"Archetype {archetype_order.index(ii) + 1}\n")
-                f.write(" Counts | Freq (%) | Confidence | Pokemon\n")
+            for idx, ii in enumerate(strong_archetypes):
+                f.write(f"Archetype {idx + 1}\n")
 
                 cat_sorted = sorted(
                     range(len(cat_indiv_list)),
@@ -356,13 +377,57 @@ class OutputWriter:
                     reverse=True
                 )
 
+                # Categorize Pokemon by confidence level
+                core_members = []      # conf >= 0.5
+                associated = []        # 0.15 <= conf < 0.5
+                occasional = []        # 0.05 <= conf < 0.15
+
+                min_freq_pct = 0.02  # Exclude Pokemon below 2% usage
+
                 for cat_idx in cat_sorted:
                     cat = cat_indiv_list[cat_idx]
                     freq = cat_core_list[0][(cat,)]
                     if freq == 0:
                         continue
 
-                    cat_name = category_nics.get(cat, str(cat))
+                    freq_pct = freq / num_teams
+                    if freq_pct < min_freq_pct:
+                        continue  # Skip rare Pokemon
+
                     conf = p_mat[ii, cat_idx]
-                    f.write(f"{freq:7d} | {freq/num_teams*100:8.3f} | {conf:10.2f} | {cat_name:>{max_name_len}}\n")
+                    cat_name = category_nics.get(cat, str(cat))
+                    entry = (freq, freq_pct, conf, cat_name)
+
+                    if conf >= 0.5:
+                        core_members.append(entry)
+                    elif conf >= 0.15:
+                        associated.append(entry)
+                    elif conf >= 0.05:
+                        occasional.append(entry)
+
+                # Write Core members
+                f.write("Core members (confidence >= 50%):\n")
+                f.write(" Counts | Freq (%) | Confidence | Pokemon\n")
+                if core_members:
+                    for freq, freq_pct, conf, cat_name in core_members:
+                        f.write(f"{freq:7d} | {freq_pct*100:8.3f} | {conf:10.2f} | {cat_name:>{max_name_len}}\n")
+                else:
+                    f.write("  (none)\n")
+
+                # Write Associated members
+                f.write("Associated (confidence 15-50%):\n")
+                if associated:
+                    for freq, freq_pct, conf, cat_name in associated:
+                        f.write(f"{freq:7d} | {freq_pct*100:8.3f} | {conf:10.2f} | {cat_name:>{max_name_len}}\n")
+                else:
+                    f.write("  (none)\n")
+
+                # Write Occasional members
+                f.write("Occasional (confidence 5-15%):\n")
+                if occasional:
+                    for freq, freq_pct, conf, cat_name in occasional:
+                        f.write(f"{freq:7d} | {freq_pct*100:8.3f} | {conf:10.2f} | {cat_name:>{max_name_len}}\n")
+                else:
+                    f.write("  (none)\n")
+
                 f.write('\n')
